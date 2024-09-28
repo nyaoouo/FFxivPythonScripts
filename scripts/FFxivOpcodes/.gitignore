@@ -1,5 +1,6 @@
 name_*.py
 !name_cafe.py
+!name_ffd.py
 opcodes_*/
 ignore/
 
