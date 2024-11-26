@@ -1,4 +1,3 @@
-import builtins
 import enum
 import io
 import struct
