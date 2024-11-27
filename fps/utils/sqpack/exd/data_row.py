@@ -112,7 +112,7 @@ class ArrayData_(Generic[_T]):
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            return tuple(self._accessors[i] for i in range(*item.indices(len(self))))
+            return tuple(self._accessors[i].__get__(self._instance, None) for i in range(*item.indices(len(self))))
         return self._accessors[item].__get__(self._instance, None)
 
 
