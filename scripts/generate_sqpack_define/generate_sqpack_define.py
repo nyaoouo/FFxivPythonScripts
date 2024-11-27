@@ -1,14 +1,14 @@
 import io
 import json
+import os
 import pathlib
 import re
+import shutil
 
 from fps.utils.sqpack import SqPack
-from fps.utils.sqpack.exd import Sheet
+from fps.utils.sqpack.exd import Sheet, DataRow
 
 cwd = pathlib.Path(__file__).parent
-saint_coinach_path = cwd / 'SaintCoinach'
-saint_coinach_define_path = saint_coinach_path / 'SaintCoinach' / 'Definitions'
 
 
 class IndentPusher:
@@ -326,63 +326,11 @@ def parse_field_def(sheet: Sheet, field_def, is_top_level=True):
             raise ValueError(f'Unknown field type: {field_def["type"]}')
 
 
-def special_sheets(define):
-    match define['sheet']:
-        case "Item":
-            next((
-                f for f in define['definitions']
-                if f.get('type') == 'repeat' and
-                   f['definition'].get('type') == "group" and
-                   f['definition']['members'] and
-                   f['definition']['members'][0].get('name') == "BaseParam"
-            ))['definition']['name'] = "Param"
-            next((
-                f for f in define['definitions']
-                if f.get('type') == 'repeat' and
-                   f['definition'].get('type') == "group" and
-                   f['definition']['members'] and
-                   f['definition']['members'][0].get('name') == "BaseParam{Special}"
-            ))['definition']['name'] = "ParamSpecial"
-        case "RelicNote":
-            next((
-                f for f in define['definitions']
-                if f.get('type') == 'repeat' and
-                   f['definition'].get('type') == "group" and
-                   f['definition']['members'] and
-                   f['definition']['members'][0].get('name') == "MonsterNoteTarget{Common}"
-            ))['definition']['name'] = "Target"
-            next((
-                f for f in define['definitions']
-                if f.get('type') == 'repeat' and
-                   f['definition'].get('type') == "group" and
-                   f['definition']['members'] and
-                   f['definition']['members'][0].get('name') == "Fate"
-            ))['definition']['name'] = "Fate"
-        case "SpecialShop":
-            next((
-                f for f in define['definitions']
-                if f.get('type') == 'repeat' and
-                   f['definition'].get('type') == "group" and
-                   f['definition']['members'] and
-                   f['definition']['members'][0].get('type') == 'repeat' and
-                   f['definition']['members'][0]['definition'].get('name') == "Item{Receive}"
-            ))['definition']['name'] = "Receive"
-            next((
-                f for f in define['definitions']
-                if f.get('type') == 'repeat' and
-                   f['definition'].get('type') == "group" and
-                   f['definition']['members'] and
-                   f['definition']['members'][0].get('type') == 'repeat' and
-                   f['definition']['members'][0]['definition'].get('name') == "Item{Cost}"
-            ))['definition']['name'] = "Cost"
-
-
 def parse_define_file(sqpack: SqPack, file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         define = json.load(f)
-    special_sheets(define)
     sheet_name = define['sheet']
-    sheet = sqpack.exd.get_sheet(sheet_name)
+    sheet = sqpack.exd.get_sheet_raw(sheet_name, row_type=DataRow)
     attrs = IndentWriter()
     structs = IndentWriter()
     attrs.write(f'_sign = {sheet.get_sign()!r}\n')
@@ -409,8 +357,8 @@ def parse_define_file(sqpack: SqPack, file_path):
     return cls.getvalue()
 
 
-def main():
-    sqpack = SqPack(r'D:\game\ff14_res\history\i7.10')
+def generate(sqpack_path, saint_coinach_define_path, dst_path):
+    sqpack = SqPack(sqpack_path)
     # print(parse_define_file(sqpack, saint_coinach_define_path / "ItemFood.json"))
     s = IndentWriter()
     s.write('from fps.utils.sestring import SeString\n')
@@ -420,15 +368,30 @@ def main():
     s.write('from fps.utils.sqpack.exd.row import data_row_impl\n')
     s.write('\n\n')
 
-    for file_path in saint_coinach_define_path.glob('*.json'):
+    for file_path in pathlib.Path(saint_coinach_define_path).glob('*.json'):
         try:
             s.write(parse_define_file(sqpack, file_path))
         except Exception as e:
             print(f'Error in {file_path}: {e}')
             raise
         s.write('\n\n')
-    with open(cwd / 'sheets.py', 'w', encoding='utf-8') as f:
+    with open(dst_path, 'w', encoding='utf-8') as f:
         f.write(s.getvalue().strip() + '\n')
+
+
+def main():
+    saint_coinach_path = cwd / 'SaintCoinach'
+    saint_coinach_define_path = saint_coinach_path / 'SaintCoinach' / 'Definitions'
+    dst = cwd / 'sheets.py'
+    generate(
+        r'D:\game\ff14_res\history\i7.10',
+        saint_coinach_define_path,
+        dst,
+    )
+
+    from fps.utils.sqpack import sheets
+    os.unlink(sheets.__file__)
+    shutil.copy(dst, sheets.__file__)
 
 
 if __name__ == '__main__':
