@@ -1,6 +1,10 @@
 import ctypes
 import functools
 import struct
+import typing
+
+if typing.TYPE_CHECKING:
+    from fps.utils.sqpack import SqPack
 
 
 def inc_ptr(ptr: 'ctypes.pointer', n):
@@ -223,7 +227,7 @@ class VulgarHeader(ctypes.Structure):
     def replacement_map(self):
         return ctypes.cast(ctypes.addressof(self) + ctypes.sizeof(self), ctypes.POINTER(ctypes.c_uint16))
 
-    def get_map(self, index):
+    def get_map(self, index) -> VulgarMap:
         if '_map_cache' not in self.__dict__:
             self._map_cache = [VulgarMap.from_header(self, i) for i in range(5)]
         return self._map_cache[index]
@@ -236,30 +240,25 @@ class VulgarHeader(ctypes.Structure):
         if not (idx := self.unicode_replace_high_map[code >> 8]): return code
         return self.replacement_map[((idx - 1) << 8) | (code & 0xff)]
 
+    @classmethod
+    def from_sqpack(cls, sqpack: 'SqPack'):
+        return VulgarHeader.from_buffer(sqpack.get_file("common/VulgarWordsFilter.dic").data_buffer)
 
-def dump():
-    from fps.utils.sqpack import SqPack
+    @classmethod
+    def from_sqpack_party(cls, sqpack: 'SqPack'):
+        return VulgarHeader.from_buffer(sqpack.get_file("common/VulgarWordsFilter_party.dic").data_buffer)
 
-    # data = SqPack.get(r'D:\game\ff14_sd\game').pack.get_file("common/VulgarWordsFilter.dic").data_buffer
-    # with open('cn_vulgar.txt', 'w', encoding='utf-8') as f:
-    #     for word in VulgarHeader.from_buffer(data).get_map(0).iter(): f.write(word + '\n')
-    # data = SqPack.get(r'D:\game\ff14_sd\game').pack.get_file("common/VulgarWordsFilter_party.dic").data_buffer
-    # with open('cn_vulgar_party.txt', 'w', encoding='utf-8') as f:
-    #     for word in VulgarHeader.from_buffer(data).get_map(0).iter(): f.write(word + '\n')
-    # data = SqPack.get(r'D:\game\SquareEnix\FINAL FANTASY XIV - A Realm Reborn\game').pack.get_file("common/VulgarWordsFilter.dic").data_buffer
-    # with open('gl_vulgar.txt', 'w', encoding='utf-8') as f:
-    #     for word in VulgarHeader.from_buffer(data).get_map(0).iter(): f.write(word + '\n')
-    # data = SqPack.get(r'D:\game\SquareEnix\FINAL FANTASY XIV - A Realm Reborn\game').pack.get_file("common/VulgarWordsFilter_party.dic").data_buffer
-    # with open('gl_vulgar_party.txt', 'w', encoding='utf-8') as f:
-    #     for word in VulgarHeader.from_buffer(data).get_map(0).iter(): f.write(word + '\n')
+    def words(self):
+        return self.get_map(0).iter()
 
 
 def test():
     from fps.utils.sqpack import SqPack
-    vug_cn = VulgarHeader.from_buffer(SqPack(r'D:\game\ff14_sd\game').pack.get_file("common/VulgarWordsFilter.dic").data_buffer)
-    vug_cn_party = VulgarHeader.from_buffer(SqPack(r'D:\game\ff14_sd\game').pack.get_file("common/VulgarWordsFilter_party.dic").data_buffer)
-    print(vug_cn.replace('魔大./陆练习生', '*'))
-    print(vug_cn_party.replace('魔大./陆练习生', '*'))
+    sqpack = SqPack(r'D:\game\ff14_sd\game')
+    vug = VulgarHeader.from_sqpack_party(sqpack)
+    # vug = VulgarHeader.from_sqpack(sqpack)
+    print(vug.replace('魔大./陆练习生', '*'))
+    # for word in vug.words(): print(word)
 
 
 if __name__ == '__main__':

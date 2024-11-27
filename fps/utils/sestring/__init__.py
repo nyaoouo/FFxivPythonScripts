@@ -162,6 +162,9 @@ class SeString:
     def __str__(self):
         return ''.join(map(str, self.args))
 
+    def __bool__(self):
+        return bool(self.args)
+
     def __repr__(self):
         return f'<SeString: {self}>'
 
