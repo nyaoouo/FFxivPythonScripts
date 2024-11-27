@@ -1,8 +1,10 @@
+import typing
 from pathlib import Path
 from .pack import PackManager
-from .exd import ExdManager
+from .exd import ExdManager, Sheet
 from .utils import Language
 
+_T = typing.TypeVar('_T')
 _cached_sqpack = {}
 
 
@@ -22,3 +24,12 @@ class SqPack:
         self.pack = PackManager(self.game_path / 'sqpack')
         self.exd = ExdManager(self.pack, default_language=default_language, exd_keep_in_memory=exd_keep_in_memory)
         self._is_init = True
+
+    def get_texture_file(self, path_or_key: str | bytes | int):
+        return self.pack.get_texture_file(path_or_key)
+
+    def get_file(self, path_or_key: str | bytes | int | tuple[str | bytes | int, ...]):
+        return self.pack.get_file(path_or_key)
+
+    def get_sheet(self, row_type: typing.Type[_T] | str) -> Sheet[_T]:
+        return self.exd.get_sheet(row_type)
