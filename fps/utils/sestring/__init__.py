@@ -129,7 +129,8 @@ class SeString:
     def write(self, buf: BIO_T, encoding='utf-8'):
         for arg in self.args:
             if isinstance(arg, str):
-                write_string(buf, arg, encoding)
+                # write_string(buf, arg, encoding)
+                buf.write(arg.encode(encoding))
             elif isinstance(arg, Macro):
                 arg.write(buf, encoding)
             else:
