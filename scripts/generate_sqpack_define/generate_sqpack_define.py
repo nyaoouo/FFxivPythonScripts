@@ -65,7 +65,7 @@ COL_TYPE_MAP = {
     0x0006: 'int',
     0x0007: 'int',
     0x0009: 'float',
-    0x000B: 'float',
+    0x000B: 'int',
     **{0x19 + i: 'int' for i in range(0, 8)}
 }
 
@@ -80,7 +80,7 @@ class SimpleFieldDef:
         assert self.is_top_level
         real_col_id = real_col_id if real_col_id is not None else col_id
         res_type = COL_TYPE_MAP[self.sheet.header.columns[real_col_id].type]
-        return f"{self.get_name(real_col_id)}: SimpleData[{res_type}] = SimpleData({col_id})\n"
+        return f"{self.get_name(real_col_id)}: 'SimpleData[{res_type}]' = SimpleData({col_id})\n"
 
     def to_class(self):
         return ""
@@ -113,6 +113,70 @@ class SimpleFieldDef:
         return "SimpleData"
 
 
+class ColorFieldDef(SimpleFieldDef):
+    def to_line(self, col_id, real_col_id=None):
+        assert self.is_top_level
+        real_col_id = real_col_id if real_col_id is not None else col_id
+        return f"{self.get_name(real_col_id)}: 'ColorData' = ColorData({col_id})\n"
+
+    def build(self, real_col_id):
+        assert (t := self.sheet.header.columns[real_col_id].type) in (6, 7), f"color {self.get_name()} must be (u)int32, got {t=:#x}"
+
+    def get_name(self, col_id=None):
+        if 'name' in self.field_def:
+            return to_field_name(self.field_def['name'])
+        return "color"
+
+    def to_py_type(self, col_id):
+        return "tuple[int, ...]"
+
+    def to_constructor(self):
+        return "ColorData"
+
+
+class IconFieldDef(SimpleFieldDef):
+    def to_line(self, col_id, real_col_id=None):
+        assert self.is_top_level
+        real_col_id = real_col_id if real_col_id is not None else col_id
+        return f"{self.get_name(real_col_id)}: 'IconData' = IconData({col_id})\n"
+
+    def build(self, real_col_id):
+        assert (t := self.sheet.header.columns[real_col_id].type) > 1, f"icon {self.get_name()} must be num, got {t=:#x}"
+
+    def get_name(self, col_id=None):
+        if 'name' in self.field_def:
+            return to_field_name(self.field_def['name'])
+        return "icon"
+
+    def to_py_type(self, col_id):
+        return "IconData_"
+
+    def to_constructor(self):
+        return "IconData"
+
+
+class LinkFieldDef(SimpleFieldDef):
+    def to_line(self, col_id, real_col_id=None):
+        assert self.is_top_level
+        real_col_id = real_col_id if real_col_id is not None else col_id
+        target = self.field_def['converter']['target']
+        return f"{self.get_name(real_col_id)}: '{target}' = LinkData({col_id}, {target!r})\n"
+
+    def build(self, real_col_id):
+        assert (t := self.sheet.header.columns[real_col_id].type) > 1, f"link {self.get_name()} must be num, got {t=:#x}"
+
+    def get_name(self, col_id=None):
+        if 'name' in self.field_def:
+            return to_field_name(self.field_def['name'])
+        return to_field_name(self.field_def['converter']['target'])
+
+    def to_py_type(self, col_id):
+        return self.field_def['converter']['target']
+
+    def to_constructor(self):
+        return f"LinkData.make({self.field_def['converter']['target']!r})"
+
+
 class ArrayFieldDef:
     def __init__(self, sheet: Sheet, field_def, is_top_level=True):
         self.sheet = sheet
@@ -130,7 +194,7 @@ class ArrayFieldDef:
         real_col_id = real_col_id if real_col_id is not None else col_id
         el_py_type = self.element_def.to_py_type(real_col_id)
         el_constructor = self.element_def.to_constructor()
-        return f"{self.get_name(real_col_id)}: ArrayData[{el_py_type}] = ArrayData({col_id}, {self.field_def['count']}, {self.sep}, {el_constructor})\n"
+        return f"{self.get_name(real_col_id)}: 'ArrayData[{el_py_type}]' = ArrayData({col_id}, {self.field_def['count']}, {self.sep}, {el_constructor})\n"
 
     def get_name(self, col_id):
         if 'name' in self.field_def:
@@ -219,7 +283,7 @@ class StructFieldDef:
         self.class_def = cls.getvalue()
 
     def to_line(self, col_id, real_col_id=None):
-        return f"{self.get_name()}: StructData[{self.struct_name}] = StructData({col_id}, {self.struct_name})\n"
+        return f"{self.get_name()}: 'StructData[{self.struct_name}]' = StructData({col_id}, {self.struct_name})\n"
 
     def to_class(self):
         return self.class_def
@@ -242,6 +306,15 @@ class StructFieldDef:
 def parse_field_def(sheet: Sheet, field_def, is_top_level=True):
     match field_def.get('type'):
         case None:
+            match field_def.get('converter', {}).get('type'):
+                case "color":
+                    return ColorFieldDef(sheet, field_def, is_top_level)
+                case "icon":
+                    return IconFieldDef(sheet, field_def, is_top_level)
+                case "link":
+                    return LinkFieldDef(sheet, field_def, is_top_level)
+                # case t if t:
+                #     print(f"unresolved type {t}: {field_def}")
             return SimpleFieldDef(sheet, field_def, is_top_level)
         case "repeat":
             return ArrayFieldDef(sheet, field_def, is_top_level)
@@ -314,6 +387,8 @@ def parse_define_file(sqpack: SqPack, file_path):
     structs = IndentWriter()
     attrs.write(f'_sign = {sheet.get_sign()!r}\n')
     if display_col := define.get('defaultColumn'):
+        if isinstance(display_col, str):
+            display_col = to_field_name(display_col)
         attrs.write(f'_display = {display_col!r}\n')
     if define['definitions']:
         attrs.write("\n")
@@ -341,6 +416,7 @@ def main():
     s.write('from fps.utils.sestring import SeString\n')
     s.write('from fps.utils.sqpack.exd import DataRow\n')
     s.write('from fps.utils.sqpack.exd.data_row import SimpleData, ArrayData_, ArrayData, Struct, StructData\n')
+    s.write('from fps.utils.sqpack.exd.data_row import IconData, IconData_, LinkData, ColorData\n')
     s.write('from fps.utils.sqpack.exd.row import data_row_impl\n')
     s.write('\n\n')
 

@@ -50,8 +50,6 @@ class ExdManager:
         sheet_name = name_or_id if isinstance(name_or_id, str) else self.sheet_identifiers[name_or_id]
         if sheet_name in self.sheets: return self.sheets[sheet_name]
         assert sheet_name in self.available_sheets, f'Sheet name {sheet_name} is not supported'
-        if not row_type:
-            row_type = DataRow
         self.sheets[sheet_name] = _sheet = Sheet(self, sheet_name, lazy, row_type)
         return _sheet
 
