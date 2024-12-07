@@ -92,7 +92,7 @@ class Scene(ctype.Struct):
     @functools.cached_property
     def lgb_asset_paths(self):
         p_offset = self._address_ + self._lgb_asset_paths
-        return [ctypes.string_at(p_offset + o.value) for o in (ctype.c_int32 * self.lgb_asset_path_count)(_address_=p_offset)]
+        return [ctypes.string_at(p_offset + o) for o in (ctype.c_int32 * self.lgb_asset_path_count)(_address_=p_offset)]
 
     @functools.cached_property
     def layer_groups(self):

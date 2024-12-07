@@ -68,7 +68,7 @@ class Layer(ctype.Struct):
     def instance_objects(self):
         p_offset = self._address_ + self._instance_objects
         return [
-            get_instance_object_from_addr(p_offset + o.value)
+            get_instance_object_from_addr(p_offset + o)
             for o in (ctype.c_int32 * self.instance_object_count)(_address_=p_offset)
         ]
 
@@ -113,7 +113,7 @@ class LayerGroup(ctype.Struct):
     @functools.cached_property
     def layers(self):
         p_offset = self._address_ + self._layers
-        return [Layer(_address_=p_offset + o.value) for o in (ctype.c_int32 * self.layer_count)(_address_=p_offset)]
+        return [Layer(_address_=p_offset + o) for o in (ctype.c_int32 * self.layer_count)(_address_=p_offset)]
 
 
 _logger = logging.getLogger('LayerGroup')
