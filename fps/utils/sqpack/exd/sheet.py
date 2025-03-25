@@ -145,10 +145,9 @@ class Sheet(Generic[_T]):
         self.mgr = mgr
         self.name = name
         self.header = ExhFile(mgr.get_exd_data(f'exd/{name}.exh'))
-        if row_type is None:
-            assert (row_type := data_row_impls.get(self.get_sign())), f"no sign match for sheet {self.name}"
-        elif hasattr(row_type, '_sign') and (sheet_sign := self.get_sign()) != getattr(row_type, '_sign', sheet_sign):
-            assert (row_type := data_row_impls.get(sheet_sign)), f"no sign match for sheet {self.name}"
+        sheet_sign = self.get_sign()
+        if row_type is None or (hasattr(row_type, '_sign') and sheet_sign != row_type._sign):
+            row_type = data_row_impls.get(self.get_sign(), DataRow)
         self._sheets = {}
         self.lazy = lazy
         self.lang_sheet_create_lock = Lock()
